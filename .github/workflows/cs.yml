@@ -1,12 +1,20 @@
-name: Build and Export Worker
+name: Build and Package for Cloudflare
 
 on:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Build Worker Artifact
+    name: Build and Package
 
     steps:
       - name: Checkout source code
@@ -28,16 +36,28 @@ jobs:
         run: |
           echo "BUILD_TARGET=cloudflare" >> $GITHUB_ENV
           echo "NODE_ENV=production" >> $GITHUB_ENV
-          # 这里保留你需要的环境变量设置...
+          # 依然保留变量设置，以防 build 过程需要
+          echo "NEXT_PUBLIC_STORAGE_TYPE=${{ secrets.NEXT_PUBLIC_STORAGE_TYPE }}" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SITE_NAME=${{ secrets.NEXT_PUBLIC_SITE_NAME }}" >> $GITHUB_ENV
 
       - name: Build for Cloudflare
         run: pnpm run build:cloudflare
-        # 这一步会生成 .open-next 目录及 worker.js
 
-      - name: Upload Worker Artifact
+      # 新增：压缩 .open-next 文件夹
+      - name: Compress Build Artifacts
+        run: |
+          if [ -d ".open-next" ]; then
+            zip -r cloudflare-build.zip .open-next/
+            echo "✅ .open-next compressed successfully."
+          else
+            echo "❌ .open-next directory not found!"
+            exit 1
+          fi
+
+      # 新增：上传压缩包并生成下载链接
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cloudflare-worker-js
-          # 指向 open-next 生成的 worker 文件路径
-          path: .open-next/worker.js
-          retention-days: 5 # 设置下载链接有效期为 5 天
+          name: Cloudflare-Build-Output
+          path: cloudflare-build.zip
+          retention-days: 7 # 下载链接有效期 7 天
