@@ -1,0 +1,43 @@
+name: Build and Export Worker
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build Worker Artifact
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set environment variables
+        run: |
+          echo "BUILD_TARGET=cloudflare" >> $GITHUB_ENV
+          echo "NODE_ENV=production" >> $GITHUB_ENV
+          # 这里保留你需要的环境变量设置...
+
+      - name: Build for Cloudflare
+        run: pnpm run build:cloudflare
+        # 这一步会生成 .open-next 目录及 worker.js
+
+      - name: Upload Worker Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-worker-js
+          # 指向 open-next 生成的 worker 文件路径
+          path: .open-next/worker.js
+          retention-days: 5 # 设置下载链接有效期为 5 天
